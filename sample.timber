@@ -1,0 +1,11 @@
+# fn my_func(a) {
+#     return a + 1
+# }
+
+{
+    add(1, 2);
+
+    def my_fn(a) {
+        add(a, 1)
+    }
+}
