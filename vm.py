@@ -1,6 +1,7 @@
+import sys
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List, Optional, Callable, Union
+from typing import List, Optional, Callable, Union, BinaryIO
 
 
 MEM_CAPACITY = 64_000
@@ -38,6 +39,7 @@ class InstrKind(Enum):
     St = auto()
     Jmp = auto()
     JmpF = auto()
+    Print = auto()
 
 
 @dataclass
@@ -69,8 +71,11 @@ class VM:
     halted: bool = False
     stack: List[Val] = field(default_factory=list)
     mem: bytearray = field(default_factory=lambda: bytearray(MEM_CAPACITY))
+    t: int = 0
+    stdout: BinaryIO = sys.stdout.buffer
 
     def step(self) -> None:
+        self.t += 1
         self._check_running()
         self._check_pc()
         instr = self.program[self.pc]
@@ -159,6 +164,10 @@ class VM:
             if guard == 0:
                 self._check_pc(arg)
                 self.pc = arg
+        elif kind == InstrKind.Print:
+            self._check_stack_depth(1)
+            val = self._pop()
+            self.stdout.write(val.to_bytes(1, 'big'))
         else:
             raise NotImplementedError
         self.pc += 1

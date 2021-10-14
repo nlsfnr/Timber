@@ -1,7 +1,4 @@
-.PHONY: main mypy
-
-main: mypy flake8
-	python3 main.py
+.PHONY: mypy flake8
 
 mypy:
 	mypy .

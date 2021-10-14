@@ -127,6 +127,9 @@ class Unit:
     def pop(self) -> 'Unit':
         return self._add_instr(InstrKind.Pop)
 
+    def print(self) -> 'Unit':
+        return self._add_instr(InstrKind.Print)
+
     def incr_tos(self, offset: Val) -> 'Unit':
         assert offset >= 0
         return (self
@@ -186,23 +189,59 @@ class Unit:
                 .push(_STACK_BASE)
                 .push(_TOS_ADDR_PTR)
                 .store()
+                .call('main')
+                .halt()
                 .comment('} entrypoint'))
 
-    def exit(self, val: Val) -> 'Unit':
-        return (self
-                .push(val)
-                .halt())
-
     def intrinsics(self) -> 'Unit':
-        return (self
-                .comment('def add {')
-                .label('add')
-                .pop_tos()
-                .pop_tos()
-                .add()
-                .rot()
-                .ret()
-                .comment('} def add'))
+        binary_ops = (
+            ('add', Unit().add()),
+            # ('sub', Unit().sub()),
+            # ('and', Unit().and_()),
+            # ('or', Unit().or_()),
+            # ('shr', Unit().shr()),
+            ('shl', Unit().shl()),
+        )
+        for name, unit in binary_ops:
+            (self
+             .comment(f'def {name} {{')
+             .label(name)
+             .pop_tos()
+             .pop_tos()
+             .rot()
+             .insert(unit)
+             .rot()
+             .ret()
+             .comment(f'}} def {name}'))
+        unary_ops = (
+            ('print', Unit().print().push(0)),
+        )
+        for name, unit in unary_ops:
+            (self
+             .comment(f'def {name} {{')
+             .label(name)
+             .pop_tos()
+             .insert(unit)
+             .rot()
+             .ret()
+             .comment(f'}} def {name}'))
+        (self
+         .comment('def exit {')
+         .label('exit')
+         .pop()  # Pop the return address
+         .pop_tos()
+         .halt()
+         .comment('} def exit'))
+        (self
+         .comment('def return {')
+         .label('return')
+         .pop_tos()
+         .rot()
+         .pop()  # Pop the return address
+         .rot()
+         .ret()  # Return to the caller's return address
+         .comment('} def return'))
+        return self
 
     def __str__(self) -> str:
         lines = []
@@ -223,7 +262,7 @@ def gen(stmt: Stmt) -> Unit:
     return (Unit()
             .fresh()
             .insert(gen_stmt(stmt))
-            .exit(0)
+            .halt()
             .intrinsics()
             .link())
 
@@ -233,7 +272,7 @@ def gen_stmt(stmt: Stmt) -> Unit:
     if isinstance(child, Block):
         return gen_block(child)
     elif isinstance(child, Expr):
-        return gen_expr(child)
+        return gen_expr(child).pop()
     elif isinstance(child, FnDef):
         return gen_fn_def(child)
     else:
@@ -262,10 +301,13 @@ def gen_fn_def(fn_def: FnDef) -> Unit:
     # hardware stack.
     body = gen_stmt(fn_def.stmt)
     return (Unit()
+            .comment(f'def {fn_def.name} {{')
             .label(fn_def.name)
             .insert(body)
+            .push(0)
             .rot()
-            .ret())
+            .ret()
+            .comment(f'}} def {fn_def.name}'))
 
 
 def gen_fn_call(fn_call: FnCall) -> Unit:
