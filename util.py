@@ -1,5 +1,5 @@
 from common import (Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef,
-                    VarDecl, WhileLoop)
+                    VarDecl, WhileLoop, Assign)
 
 
 def fmt_node(node: Node) -> str:
@@ -35,3 +35,6 @@ def _fmt_node(node: Node, lvl: int) -> str:
         return padding + f'Var {node.name}'
     if isinstance(node, VarDecl):
         return padding + f'VarDecl {node.name}'
+    if isinstance(node, Assign):
+        return padding + f'Assign {node.name}\n{_fmt_node(node.expr, lvl + 1)}'
+    raise NotImplementedError

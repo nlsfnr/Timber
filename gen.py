@@ -4,7 +4,7 @@ from typing import Optional, Dict, Union, List
 
 from vm import Val, Instr, InstrKind, Program
 from common import (Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef,
-                    VarDecl, WhileLoop)
+                    VarDecl, WhileLoop, Assign)
 
 
 _TOS_ADDR_PTR = 0
@@ -307,6 +307,7 @@ def gen(stmt: Stmt) -> Unit:
 
 def gen_stmt(stmt: Stmt, ns: Namespace) -> Unit:
     child = stmt.child
+    ns.push()
     if isinstance(child, Block):
         return gen_block(child, ns)
     elif isinstance(child, Expr):
@@ -317,8 +318,11 @@ def gen_stmt(stmt: Stmt, ns: Namespace) -> Unit:
         return gen_while_loop(child, ns)
     elif isinstance(child, VarDecl):
         return gen_var_decl(child, ns)
+    elif isinstance(child, Assign):
+        return gen_assign(child, ns)
     else:
         raise NotImplementedError
+    ns.pop()
 
 
 def gen_block(block: Block, ns: Namespace) -> Unit:
@@ -329,7 +333,9 @@ def gen_block(block: Block, ns: Namespace) -> Unit:
 
 
 def gen_var_decl(var_decl: VarDecl, ns: Namespace) -> Unit:
+    ns.pop()  # To inject the var into the parent's namespace
     ns.add([var_decl.name])
+    ns.push()
     return Unit()
 
 
@@ -414,6 +420,15 @@ def gen_int(int_: Int, ns: Namespace) -> Unit:
     return Unit().push(int_.value)
 
 
+def gen_assign(assign: Assign, ns: Namespace) -> Unit:
+    ns.push()
+    expr = gen_expr(assign.expr, ns)
+    ns.pop()
+    return (Unit()
+            .insert(expr)
+            .store_tos(ns.get(assign.name)))
+
+
 def gen_var(var: Var, ns: Namespace) -> Unit:
     return Unit().load_tos(ns.get(var.name))
 
@@ -460,4 +475,8 @@ def _stack_size_lit(node: Lit) -> int:
 
 @stack_size.register
 def _stack_size_int(node: Int) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_assign(node: Assign) -> int:
     return 0

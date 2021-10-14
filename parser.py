@@ -1,7 +1,8 @@
 from typing import List, Optional, Tuple, TypeVar, Callable
 
 from common import (Token, TokenKind, TokenValue, Stmt, Block, Expr, FnCall,
-                    Lit, Int, Var, FnDef, WhileLoop, Node, VarDecl, Keyword)
+                    Lit, Int, Var, FnDef, WhileLoop, Node, VarDecl, Keyword,
+                    Assign)
 
 
 NodeT = TypeVar('NodeT', bound=Node)
@@ -19,8 +20,8 @@ class ParsingError(Exception):
     def __str__(self) -> str:
         span = ''
         if self.token is not None:
-            span = f'[{self.token.index}]'
-        return f'ParsingError{span}: {self.msg}'
+            tok = f'[{self.token}]'
+        return f'ParsingError{tok}: {self.msg}'
 
 
 def parse(tokens: List[Token]) -> Node:
@@ -88,9 +89,15 @@ def parse_stmt(tokens: List[Token], i: int) -> Tuple[Stmt, int]:
             var, i = parse_var_decl(tokens, i)
             return Stmt(var), i
         raise NotImplementedError
-    else:
-        expr, i = parse_expr(tokens, i)
-        return Stmt(expr), i
+    elif t.kind == TokenKind.Word:
+        t1 = peek_expect(tokens, i + 1)
+        if t1.kind == TokenKind.Eq:
+            assign, i = parse_assign(tokens, i)
+            return Stmt(assign), i
+        elif t1.kind == TokenKind.LParen:
+            expr, i = parse_expr(tokens, i)
+            return Stmt(expr), i
+    raise ParsingError(f'Could not parse token', t)
 
 
 def parse_block(tokens: List[Token], i: int) -> Tuple[Block, int]:
@@ -140,6 +147,14 @@ def parse_fn_def(tokens: List[Token], i: int) -> Tuple[FnDef, int]:
     arg_names = [a.name for a in arg_vars]
     stmt, i = parse_stmt(tokens, i)
     return FnDef(name_token.value, arg_names, stmt), i
+
+
+def parse_assign(tokens: List[Token], i: int) -> Tuple[Assign, int]:
+    name_token, i = expect(tokens, i, TokenKind.Word)
+    assert isinstance(name_token.value, str)
+    _, i = expect(tokens, i, TokenKind.Eq)
+    expr, i = parse_expr(tokens, i)
+    return Assign(name_token.value, expr), i
 
 
 def parse_lit(tokens: List[Token], i: int) -> Tuple[Lit, int]:

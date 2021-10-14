@@ -1,13 +1,27 @@
 {
     def main() {
-        fn(97);
+        fn();
         return(0)
     };
 
-    def fn(x) {
-        var y;
-        print(x);
-        print(10);
+    def fn() {
+        var i;
+        i = 0;
+        i = inc(i);
+        printd(i);
         return(0)
+    };
+
+    def inc(x) {
+        return(add(x, 1))
+    };
+
+    def printd(n) {
+        println(add(48, n))
+    };
+
+    def println(x) {
+        print(x);
+        print(10)
     }
 }

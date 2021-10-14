@@ -96,6 +96,12 @@ class FnDef:
 
 
 @dataclass
+class Assign:
+    name: str
+    expr: 'Expr'
+
+
+@dataclass
 class VarDecl:
     name: str
 
@@ -119,8 +125,8 @@ class Block:
 @dataclass
 class Stmt:
     # TODO: Create Node that contains Union[Stmt, FnDef, VarDecl]
-    child: Union[Block, Expr, FnDef, WhileLoop, VarDecl, Var]
+    child: Union[Block, Expr, FnDef, WhileLoop, VarDecl, Var, Assign]
 
 
 Node = Union[Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef, WhileLoop,
-             VarDecl]
+             VarDecl, Assign]
