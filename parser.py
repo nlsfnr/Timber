@@ -1,10 +1,9 @@
-from typing import Union, List, Type, Optional, Tuple, TypeVar, Callable
+from typing import List, Optional, Tuple, TypeVar, Callable
 
 from common import (Token, TokenKind, TokenValue, Stmt, Block, Expr, FnCall,
                     Lit, Int, Var, FnDef, Node, Keyword)
 
 
-NodeType = Union[Type[Stmt], Type[Block], Type[Expr], Type[Lit], Type[Var]]
 NodeT = TypeVar('NodeT', bound=Node)
 
 

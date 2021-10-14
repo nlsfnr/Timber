@@ -1,11 +1,12 @@
-# fn my_func(a) {
-#     return a + 1
-# }
-
 {
-    add(1, 2);
+   #  main();
 
-    def my_fn(a) {
-        add(a, 1)
-    }
+   #  def main() {
+   #      my_fn(1)
+   #  };
+
+   #  def my_fn(a) {
+   #      add(a, 1)
+   #  }
+   add(add(10, add(20, 40)), add(1, 2))
 }

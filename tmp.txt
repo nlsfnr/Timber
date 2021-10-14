@@ -1,0 +1,16 @@
+main:
+    store tos, 12
+    store tos + 1, 43
+    call fn
+
+fn:
+    load tos
+    load tos + 1
+    store 0, tos + 2
+
+    store tos, 100
+    store tos + 1, 3020
+    call fn
+
+    store 0, tos - 2
+    return
