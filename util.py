@@ -1,4 +1,5 @@
-from common import Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef
+from common import (Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef,
+                    WhileLoop)
 
 
 def fmt_node(node: Node) -> str:
@@ -12,6 +13,10 @@ def _fmt_node(node: Node, lvl: int) -> str:
     if isinstance(node, Block):
         stmts = '\n'.join([_fmt_node(stmt, lvl + 1) for stmt in node.children])
         return padding + f'Block\n{stmts}'
+    if isinstance(node, WhileLoop):
+        return padding + (f'WhileLoop\n'
+                          f'{_fmt_node(node.guard, lvl + 1)}\n'
+                          f'{_fmt_node(node.body, lvl + 1)}')
     if isinstance(node, Expr):
         return padding + f'Expr\n{_fmt_node(node.child, lvl + 1)}'
     if isinstance(node, FnDef):

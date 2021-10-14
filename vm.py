@@ -39,6 +39,7 @@ class InstrKind(Enum):
     St = auto()
     Jmp = auto()
     JmpF = auto()
+    JmpT = auto()
     Print = auto()
 
 
@@ -162,6 +163,12 @@ class VM:
             self._check_stack_depth(1)
             guard = self._pop()
             if guard == 0:
+                self._check_pc(arg)
+                self.pc = arg
+        elif kind == InstrKind.JmpT:
+            self._check_stack_depth(1)
+            guard = self._pop()
+            if guard != 0:
                 self._check_pc(arg)
                 self.pc = arg
         elif kind == InstrKind.Print:

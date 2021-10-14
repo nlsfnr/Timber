@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict
 
 from vm import Val, Instr, InstrKind, Program
-from common import Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef
+from common import Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef, WhileLoop
 
 
 _TOS_ADDR_PTR = 0
@@ -21,6 +21,13 @@ class Unit:
     labels: Dict[str, int] = field(default_factory=dict)
     jumps: Dict[int, str] = field(default_factory=dict)
     comments: Dict[int, str] = field(default_factory=dict)
+
+    _next_label_id: int = -1
+
+    @classmethod
+    def new_label(self) -> str:
+        self._next_label_id += 1
+        return f'__{self._next_label_id}'
 
     def _add_instr(self, instr_kind: InstrKind, arg: Optional[Val] = None
                    ) -> 'Unit':
@@ -50,7 +57,7 @@ class Unit:
                 raise GenError(f'Unknown label: {name}')
             instr = self.instrs[addr]
             assert instr.kind in [InstrKind.Jmp, InstrKind.JmpF,
-                                  InstrKind.Call]
+                                  InstrKind.JmpT, InstrKind.Call]
             assert instr.arg == _DUMMY_ADDR
             instr.arg = self.labels[name] - 1
         return self
@@ -120,6 +127,10 @@ class Unit:
     def jmp_f(self, name: str) -> 'Unit':
         self.jumps[self.instrs.here] = name
         return self._add_instr(InstrKind.JmpF, _DUMMY_ADDR)
+
+    def jmp_t(self, name: str) -> 'Unit':
+        self.jumps[self.instrs.here] = name
+        return self._add_instr(InstrKind.JmpT, _DUMMY_ADDR)
 
     def push(self, arg: Val) -> 'Unit':
         return self._add_instr(InstrKind.Push, arg)
@@ -275,6 +286,8 @@ def gen_stmt(stmt: Stmt) -> Unit:
         return gen_expr(child).pop()
     elif isinstance(child, FnDef):
         return gen_fn_def(child)
+    elif isinstance(child, WhileLoop):
+        return gen_while_loop(child)
     else:
         raise NotImplementedError
 
@@ -308,6 +321,28 @@ def gen_fn_def(fn_def: FnDef) -> Unit:
             .rot()
             .ret()
             .comment(f'}} def {fn_def.name}'))
+
+
+def gen_while_loop(while_loop: WhileLoop) -> Unit:
+    guard = gen_expr(while_loop.guard)
+    body = gen_stmt(while_loop.body)
+    start_label = Unit.new_label()
+    guard_label = Unit.new_label()
+    end_label = Unit.new_label()
+    return (Unit()
+            .comment('while loop {')
+            .jmp(guard_label)
+            .label(start_label)
+            .comment('while body {')
+            .insert(body)
+            .comment('} while body')
+            .comment('while guard {')
+            .label(guard_label)
+            .insert(guard)
+            .jmp_t(start_label)
+            .comment('} while guard')
+            .label(end_label)
+            .comment('} while loop'))
 
 
 def gen_fn_call(fn_call: FnCall) -> Unit:

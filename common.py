@@ -26,11 +26,13 @@ class TokenKind(Enum):
 
 class Keyword(Enum):
     FnDef = auto()
+    While = auto()
 
     @classmethod
     def from_str(cls, s: str) -> Optional['Keyword']:
         return {
             'def': cls.FnDef,
+            'while': cls.While,
         }.get(s, None)
 
     def __str__(self) -> str:
@@ -97,13 +99,19 @@ class Expr:
 
 
 @dataclass
+class WhileLoop:
+    guard: 'Expr'
+    body: 'Stmt'
+
+
+@dataclass
 class Block:
     children: List['Stmt']
 
 
 @dataclass
 class Stmt:
-    child: Union[Block, Expr, FnDef]
+    child: Union[Block, Expr, FnDef, WhileLoop]
 
 
 Node = Union[Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef]

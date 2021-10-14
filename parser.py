@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, TypeVar, Callable
 
 from common import (Token, TokenKind, TokenValue, Stmt, Block, Expr, FnCall,
-                    Lit, Int, Var, FnDef, Node, Keyword)
+                    Lit, Int, Var, FnDef, WhileLoop, Node, Keyword)
 
 
 NodeT = TypeVar('NodeT', bound=Node)
@@ -81,6 +81,9 @@ def parse_stmt(tokens: List[Token], i: int) -> Tuple[Stmt, int]:
         if t.value == Keyword.FnDef:
             fn_def, i = parse_fn_def(tokens, i)
             return Stmt(fn_def), i
+        elif t.value == Keyword.While:
+            while_loop, i = parse_while_loop(tokens, i)
+            return Stmt(while_loop), i
         raise NotImplementedError
     else:
         expr, i = parse_expr(tokens, i)
@@ -159,6 +162,15 @@ def parse_var(tokens: List[Token], i: int) -> Tuple[Var, int]:
         raise expected_but_got([TokenKind.Word], t)
     assert isinstance(t.value, str)
     return Var(t, t.value), i + 1
+
+
+def parse_while_loop(tokens: List[Token], i: int) -> Tuple[WhileLoop, int]:
+    _, i = expect_value(tokens, i, TokenKind.Keyword, Keyword.While)
+    _, i = expect(tokens, i, TokenKind.LParen)
+    guard, i = parse_expr(tokens, i)
+    _, i = expect(tokens, i, TokenKind.RParen)
+    body, i = parse_stmt(tokens, i)
+    return WhileLoop(guard, body), i
 
 
 def parse_until(tokens: List[Token], i: int,
