@@ -14,7 +14,7 @@ from vm import VM, Program, Instr, InstrKind
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('cmd', metavar='CMD', type=str,
-                        choices=['run', 'dbg', 'asm', 'ast'])
+                        choices=['run', 'dbg', 'asm', 'ast', 'lex'])
     parser.add_argument('file', metavar='FILE', type=Path)
     args = parser.parse_args()
 
@@ -50,6 +50,10 @@ def main():
         tokens = lex(src)
         node = parse(tokens)
         print(fmt_node(node))
+
+    elif args.cmd == 'lex':
+        tokens = lex(src)
+        print(Token.fmt_many(tokens))
 
 
 if __name__ == '__main__':

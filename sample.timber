@@ -1,8 +1,13 @@
 {
     def main() {
-        while (1) {
-            print(97)
-        };
+        fn(97);
+        return(0)
+    };
+
+    def fn(x) {
+        var y;
+        print(x);
+        print(10);
         return(0)
     }
 }

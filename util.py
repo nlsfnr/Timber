@@ -1,5 +1,5 @@
 from common import (Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef,
-                    WhileLoop)
+                    VarDecl, WhileLoop)
 
 
 def fmt_node(node: Node) -> str:
@@ -33,3 +33,5 @@ def _fmt_node(node: Node, lvl: int) -> str:
         return padding + f'Int {node.value}'
     if isinstance(node, Var):
         return padding + f'Var {node.name}'
+    if isinstance(node, VarDecl):
+        return padding + f'VarDecl {node.name}'

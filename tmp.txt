@@ -1,190 +1,129 @@
 entrypoint {
   000 Push   8
   001 Push   0
-  002 Store  
+  002 Store
   003 Call   4
-  004 Halt   
+  004 Halt
 } entrypoint
 def main {
 call fn {
-  005 Call   21
+  005 Push   97
+  006 Push   0
+  007 Load
+  008 Store
+  009 Call   24
 } call fn
-  006 Pop    
+  010 Pop
 call return {
-  007 Push   0
-push TOS {
-  008 Push   0
-  009 Load   
-  010 Store  
   011 Push   0
-  012 Load   
-  013 Push   1
-  014 Add    
-  015 Push   0
-  016 Store  
-} push TOS
-  017 Call   128
+  012 Push   0
+  013 Load
+  014 Store
+  015 Call   95
 } call return
-  018 Pop    
+  016 Pop
+  017 Push   0
+  018 Load
   019 Push   0
-  020 Rot    
-  021 Ret    
+  020 Sub
+  021 Push   0
+  022 Store
+  023 Rot
+  024 Ret
 } def main
 def fn {
+  025 Push   0
+  026 Load
+  027 Push   1
+  028 Add
+  029 Push   0
+  030 Store
 call print {
-  022 Push   97
-push TOS {
-  023 Push   0
-  024 Load   
-  025 Store  
-  026 Push   0
-  027 Load   
-  028 Push   1
-  029 Add    
-  030 Push   0
-  031 Store  
-} push TOS
-  032 Call   105
+  031 Push   0
+  032 Load
+  033 Push   1
+  034 Sub
+  035 Load
+  036 Push   0
+  037 Load
+  038 Store
+  039 Call   83
 } call print
-  033 Pop    
+  040 Pop
 call print {
-  034 Push   98
-push TOS {
-  035 Push   0
-  036 Load   
-  037 Store  
-  038 Push   0
-  039 Load   
-  040 Push   1
-  041 Add    
+  041 Push   10
   042 Push   0
-  043 Store  
-} push TOS
-  044 Call   105
+  043 Load
+  044 Store
+  045 Call   83
 } call print
-  045 Pop    
-call print {
-  046 Push   10
-push TOS {
+  046 Pop
+call return {
   047 Push   0
-  048 Load   
-  049 Store  
-  050 Push   0
-  051 Load   
-  052 Push   1
-  053 Add    
-  054 Push   0
-  055 Store  
-} push TOS
-  056 Call   105
-} call print
-  057 Pop    
-  058 Push   0
-  059 Rot    
-  060 Ret    
+  048 Push   0
+  049 Load
+  050 Store
+  051 Call   95
+} call return
+  052 Pop
+  053 Push   0
+  054 Load
+  055 Push   1
+  056 Sub
+  057 Push   0
+  058 Store
+  059 Rot
+  060 Ret
 } def fn
-  061 Halt   
+  061 Halt
 def add {
-pop TOS {
   062 Push   0
-  063 Load   
+  063 Load
   064 Push   1
-  065 Sub    
-  066 Push   0
-  067 Store  
-  068 Push   0
-  069 Load   
-  070 Load   
-} pop TOS
-pop TOS {
-  071 Push   0
-  072 Load   
-  073 Push   1
-  074 Sub    
-  075 Push   0
-  076 Store  
-  077 Push   0
-  078 Load   
-  079 Load   
-} pop TOS
-  080 Rot    
-  081 Add    
-  082 Rot    
-  083 Ret    
+  065 Sub
+  066 Load
+  067 Push   0
+  068 Load
+  069 Load
+  070 Add
+  071 Rot
+  072 Ret
 } def add
 def shl {
-pop TOS {
-  084 Push   0
-  085 Load   
-  086 Push   1
-  087 Sub    
-  088 Push   0
-  089 Store  
-  090 Push   0
-  091 Load   
-  092 Load   
-} pop TOS
-pop TOS {
-  093 Push   0
-  094 Load   
-  095 Push   1
-  096 Sub    
-  097 Push   0
-  098 Store  
-  099 Push   0
-  100 Load   
-  101 Load   
-} pop TOS
-  102 Rot    
-  103 Shl    
-  104 Rot    
-  105 Ret    
+  073 Push   0
+  074 Load
+  075 Push   1
+  076 Sub
+  077 Load
+  078 Push   0
+  079 Load
+  080 Load
+  081 Shl
+  082 Rot
+  083 Ret
 } def shl
 def print {
-pop TOS {
-  106 Push   0
-  107 Load   
-  108 Push   1
-  109 Sub    
-  110 Push   0
-  111 Store  
-  112 Push   0
-  113 Load   
-  114 Load   
-} pop TOS
-  115 Print  
-  116 Rot    
-  117 Ret    
+  084 Push   0
+  085 Load
+  086 Load
+  087 Print
+  088 Push   0
+  089 Rot
+  090 Ret
 } def print
 def exit {
-  118 Pop    
-pop TOS {
-  119 Push   0
-  120 Load   
-  121 Push   1
-  122 Sub    
-  123 Push   0
-  124 Store  
-  125 Push   0
-  126 Load   
-  127 Load   
-} pop TOS
-  128 Halt   
+  091 Pop
+  092 Push   0
+  093 Load
+  094 Load
+  095 Halt
 } def exit
 def return {
-pop TOS {
-  129 Push   0
-  130 Load   
-  131 Push   1
-  132 Sub    
-  133 Push   0
-  134 Store  
-  135 Push   0
-  136 Load   
-  137 Load   
-} pop TOS
-  138 Rot    
-  139 Pop    
-  140 Rot    
-  141 Ret    
+  096 Push   0
+  097 Load
+  098 Load
+  099 Rot
+  100 Pop
+  101 Rot
+  102 Ret
 } def return

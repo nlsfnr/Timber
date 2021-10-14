@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, TypeVar, Callable
 
 from common import (Token, TokenKind, TokenValue, Stmt, Block, Expr, FnCall,
-                    Lit, Int, Var, FnDef, WhileLoop, Node, Keyword)
+                    Lit, Int, Var, FnDef, WhileLoop, Node, VarDecl, Keyword)
 
 
 NodeT = TypeVar('NodeT', bound=Node)
@@ -84,6 +84,9 @@ def parse_stmt(tokens: List[Token], i: int) -> Tuple[Stmt, int]:
         elif t.value == Keyword.While:
             while_loop, i = parse_while_loop(tokens, i)
             return Stmt(while_loop), i
+        elif t.value == Keyword.Var:
+            var, i = parse_var_decl(tokens, i)
+            return Stmt(var), i
         raise NotImplementedError
     else:
         expr, i = parse_expr(tokens, i)
@@ -149,19 +152,22 @@ def parse_lit(tokens: List[Token], i: int) -> Tuple[Lit, int]:
 
 
 def parse_int(tokens: List[Token], i: int) -> Tuple[Int, int]:
-    t = peek_expect(tokens, i)
-    if t.kind != TokenKind.Int:
-        raise expected_but_got([TokenKind.Int], t)
+    t, i = expect(tokens, i, TokenKind.Int)
     assert isinstance(t.value, int)
-    return Int(t, t.value), i + 1
+    return Int(t, t.value), i
+
+
+def parse_var_decl(tokens: List[Token], i: int) -> Tuple[VarDecl, int]:
+    _, i = expect_value(tokens, i, TokenKind.Keyword, Keyword.Var)
+    name_token, i = expect(tokens, i, TokenKind.Word)
+    assert isinstance(name_token.value, str)
+    return VarDecl(name_token.value), i
 
 
 def parse_var(tokens: List[Token], i: int) -> Tuple[Var, int]:
-    t = peek_expect(tokens, i)
-    if t.kind != TokenKind.Word:
-        raise expected_but_got([TokenKind.Word], t)
+    t, i = expect(tokens, i, TokenKind.Word)
     assert isinstance(t.value, str)
-    return Var(t, t.value), i + 1
+    return Var(t, t.value), i
 
 
 def parse_while_loop(tokens: List[Token], i: int) -> Tuple[WhileLoop, int]:

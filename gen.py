@@ -1,9 +1,10 @@
-from functools import reduce
+from functools import reduce, singledispatch
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Optional, Dict, Union, List
 
 from vm import Val, Instr, InstrKind, Program
-from common import Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef, WhileLoop
+from common import (Node, Stmt, Block, Expr, Lit, Int, Var, FnCall, FnDef,
+                    VarDecl, WhileLoop)
 
 
 _TOS_ADDR_PTR = 0
@@ -13,6 +14,31 @@ _DUMMY_ADDR = -9999999
 
 class GenError(Exception):
     pass
+
+
+@dataclass
+class Namespace:
+    stack: List[Dict[str, int]] = field(default_factory=list)
+
+    def get(self, name: str) -> int:
+        offset = 0
+        for ns in reversed(self.stack):
+            if name in ns:
+                return offset + ns[name]
+            offset += len(ns)
+        raise GenError(f'Unknown identifier: {name}')
+
+    def add(self, names: List[str]) -> 'Namespace':
+        for name in names:
+            assert name not in self.stack
+            self.stack[-1][name] = len(self.stack[-1]) + 1
+        return self
+
+    def push(self) -> None:
+        self.stack.append(dict())
+
+    def pop(self) -> None:
+        self.stack.pop()
 
 
 @dataclass
@@ -142,7 +168,8 @@ class Unit:
         return self._add_instr(InstrKind.Print)
 
     def incr_tos(self, offset: Val) -> 'Unit':
-        assert offset >= 0
+        if offset == 0:
+            return self
         return (self
                 .load_tos_ptr()
                 .push(offset)
@@ -166,7 +193,7 @@ class Unit:
                 .push(_TOS_ADDR_PTR)
                 .load()
                 .push(offset)
-                .add())
+                .sub())
 
     def store_tos_ptr(self) -> 'Unit':
         return (self
@@ -217,9 +244,8 @@ class Unit:
             (self
              .comment(f'def {name} {{')
              .label(name)
-             .pop_tos()
-             .pop_tos()
-             .rot()
+             .load_tos(1)
+             .load_tos(0)
              .insert(unit)
              .rot()
              .ret()
@@ -231,7 +257,7 @@ class Unit:
             (self
              .comment(f'def {name} {{')
              .label(name)
-             .pop_tos()
+             .load_tos()
              .insert(unit)
              .rot()
              .ret()
@@ -240,13 +266,13 @@ class Unit:
          .comment('def exit {')
          .label('exit')
          .pop()  # Pop the return address
-         .pop_tos()
+         .load_tos()
          .halt()
          .comment('} def exit'))
         (self
          .comment('def return {')
          .label('return')
-         .pop_tos()
+         .load_tos()
          .rot()
          .pop()  # Pop the return address
          .rot()
@@ -270,62 +296,80 @@ class Unit:
 
 
 def gen(stmt: Stmt) -> Unit:
+    ns = Namespace()
     return (Unit()
             .fresh()
-            .insert(gen_stmt(stmt))
+            .insert(gen_stmt(stmt, ns))
             .halt()
             .intrinsics()
             .link())
 
 
-def gen_stmt(stmt: Stmt) -> Unit:
+def gen_stmt(stmt: Stmt, ns: Namespace) -> Unit:
     child = stmt.child
     if isinstance(child, Block):
-        return gen_block(child)
+        return gen_block(child, ns)
     elif isinstance(child, Expr):
-        return gen_expr(child).pop()
+        return gen_expr(child, ns).pop()
     elif isinstance(child, FnDef):
-        return gen_fn_def(child)
+        return gen_fn_def(child, ns)
     elif isinstance(child, WhileLoop):
-        return gen_while_loop(child)
+        return gen_while_loop(child, ns)
+    elif isinstance(child, VarDecl):
+        return gen_var_decl(child, ns)
     else:
         raise NotImplementedError
 
 
-def gen_block(block: Block) -> Unit:
-    units = map(gen_stmt, block.children)
+def gen_block(block: Block, ns: Namespace) -> Unit:
+    ns.push()
+    units = [gen_stmt(child, ns) for child in block.children]
+    ns.pop()
     return reduce(Unit.insert, units, Unit())
 
 
-def gen_expr(expr: Expr) -> Unit:
+def gen_var_decl(var_decl: VarDecl, ns: Namespace) -> Unit:
+    ns.add([var_decl.name])
+    return Unit()
+
+
+def gen_expr(expr: Expr, ns: Namespace) -> Unit:
     child = expr.child
     if isinstance(child, Lit):
-        return gen_lit(child)
+        return gen_lit(child, ns)
     if isinstance(child, Var):
-        return gen_var(child)
+        return gen_var(child, ns)
     if isinstance(child, FnCall):
-        return gen_fn_call(child)
+        return gen_fn_call(child, ns)
     else:
         raise NotImplementedError
 
 
-def gen_fn_def(fn_def: FnDef) -> Unit:
+def gen_fn_def(fn_def: FnDef, ns: Namespace) -> Unit:
     # The body of a function must leave the (single) return value on the
     # hardware stack.
-    body = gen_stmt(fn_def.stmt)
+    ns.push()
+    ns.add(fn_def.arg_names)
+    body = gen_stmt(fn_def.stmt, ns)
+    ns.pop()
     return (Unit()
             .comment(f'def {fn_def.name} {{')
             .label(fn_def.name)
+            .incr_tos(stack_size(fn_def))
             .insert(body)
-            .push(0)
+            .decr_tos(stack_size(fn_def))
             .rot()
             .ret()
             .comment(f'}} def {fn_def.name}'))
 
 
-def gen_while_loop(while_loop: WhileLoop) -> Unit:
-    guard = gen_expr(while_loop.guard)
-    body = gen_stmt(while_loop.body)
+def gen_while_loop(while_loop: WhileLoop, ns: Namespace) -> Unit:
+    ns.push()
+    guard = gen_expr(while_loop.guard, ns)
+    ns.pop()
+    ns.push()
+    body = gen_stmt(while_loop.body, ns)
+    ns.pop()
     start_label = Unit.new_label()
     guard_label = Unit.new_label()
     end_label = Unit.new_label()
@@ -345,26 +389,75 @@ def gen_while_loop(while_loop: WhileLoop) -> Unit:
             .comment('} while loop'))
 
 
-def gen_fn_call(fn_call: FnCall) -> Unit:
-    args_raw = [gen_expr(arg) for arg in fn_call.args]
-    args_pushed = [Unit().insert(arg).push_tos()
+def gen_fn_call(fn_call: FnCall, ns: Namespace) -> Unit:
+    ns.push()
+    args_raw = [gen_expr(arg, ns) for arg in fn_call.args]
+    ns.pop()
+    args_pushed = [Unit().insert(arg).store_tos(i)
                    for i, arg in enumerate(args_raw)]
     args = reduce(Unit.insert, args_pushed,
                   Unit().comment(f'call {fn_call.name} {{'))
-    return args.call(fn_call.name).comment(f'}} call {fn_call.name}')
+    return (args
+            .call(fn_call.name)
+            .comment(f'}} call {fn_call.name}'))
 
 
-def gen_lit(lit: Lit) -> Unit:
+def gen_lit(lit: Lit, ns: Namespace) -> Unit:
     child = lit.child
     if isinstance(child, Int):
-        return gen_int(child)
+        return gen_int(child, ns)
     else:
         raise NotImplementedError
 
 
-def gen_int(int_: Int) -> Unit:
+def gen_int(int_: Int, ns: Namespace) -> Unit:
     return Unit().push(int_.value)
 
 
-def gen_var(var: Var) -> Unit:
-    raise NotImplementedError
+def gen_var(var: Var, ns: Namespace) -> Unit:
+    return Unit().load_tos(ns.get(var.name))
+
+
+@singledispatch
+def stack_size(node: Node) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_stmt(node: Stmt) -> int:
+    return stack_size(node.child)
+
+@stack_size.register
+def _stack_size_bloc(node: Block) -> int:
+    return sum(map(stack_size, node.children))
+
+@stack_size.register
+def _stack_size_fn_def(node: FnDef) -> int:
+    return len(node.arg_names) + stack_size(node.stmt)
+
+@stack_size.register
+def _stack_size_while_loop(node: WhileLoop) -> int:
+    return stack_size(node.guard) + stack_size(node.body)
+
+@stack_size.register
+def _stack_size_var_decl(node: VarDecl) -> int:
+    return 1
+
+@stack_size.register
+def _stack_size_expr(node: Expr) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_var(node: Var) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_fn_call(node: FnCall) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_lit(node: Lit) -> int:
+    return 0
+
+@stack_size.register
+def _stack_size_int(node: Int) -> int:
+    return 0
