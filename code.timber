@@ -1,0 +1,8 @@
+var x;
+
+def main(var a) {
+    var x;
+    while (x) {
+        add(x, 1);
+    };
+}

@@ -1,7 +1,9 @@
-.PHONY: mypy flake8
+.PHONY: mypy flake8 all
 
 mypy:
-	mypy . --exclude old/
+	mypy timber
 
 flake8:
-	flake8 .
+	flake8 timber
+
+all: mypy flake8

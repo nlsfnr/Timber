@@ -14,33 +14,6 @@ def to_ptr(ptr: MWord) -> MWord:
 MEM_CAPACITY = to_ptr(8)
 STACK_PTR = to_ptr(4)
 
-'''
-TOS = 0
-
-Push   97
-VStore 1
-Push   98
-VStore 2
-Push   99
-VStore 3
-[_, 97, 98, 99]
-Call   fn
-[rv, 97, 98, 99]
-
-fn(a, b, c) {
-    VIncr 5     vstack = [rv, a, b, c, d, _], vtos = 5
-    VLoad -4    a
-    VLoad -3
-    VLoad -2
-    Add
-    Add         stack = [a + b + c]
-    VDecr 5
-    Ret
-}
-[]
- ^
-
-'''
 
 class VMError(Exception):
     pass
@@ -73,6 +46,9 @@ class OpKind(Enum):
     Load = auto()       # x <- stack[-1]; stack.push(mem[x:x+MWORD_SIZE])
     Store = auto()      # x <- stack[-1]; mem[x:x+MWORD_SIZE] = stack[-2]
 
+    def __str__(self) -> str:
+        return self.name
+
 
 @dataclass
 class Op:
@@ -95,12 +71,8 @@ class VM:
         kind = op.kind
         arg = op.arg
 
-        if kind == OpKind.Halt:
-            self.halted = True
-            return
-
         # Stack
-        elif kind == OpKind.Push:
+        if kind == OpKind.Push:
             self.stack.append(arg)
         elif kind == OpKind.Pop:
             self._needs_stack_depth(1)
@@ -182,6 +154,10 @@ class VM:
             val = self.stack.pop()
             self._store_mword(ptr, val)
 
+        # System
+        elif kind == OpKind.Halt:
+            self.halted = True
+
         else:
             raise NotImplementedError
         self.pc += 1
@@ -194,10 +170,10 @@ class VM:
 
     def dbg(self) -> 'VM':
         while not self.halted:
-            stack_items = ' '.join(map(str, self.stack))
+            stack_items = ' '.join(f'{x:3}' for x in self.stack)
             op = self.ops[self.pc]
-            print(f'|{stack_items}')
-            print(f'{op.kind.name:7} {op.arg:3}{"":6}', end='')
+            print(f'    |{stack_items}')
+            print(f'{self.pc:03} {op.kind:7} {op.arg:3}{"":6}', end='')
             while True:
                 inp = input()
                 if not inp:
@@ -205,6 +181,7 @@ class VM:
                 ptr = to_ptr(int(inp))
                 print(f'mem[{ptr}] = {self._load_mword(ptr)}')
             self.step()
+        return self
 
     def _needs_stack_depth(self, depth: int) -> None:
         if len(self.stack) < depth:
@@ -229,7 +206,7 @@ class VM:
 
     def _check_ptr(self, ptr: MWord) -> None:
         if ptr == 0:
-            raise VMError(f'Tried to dereference a NULL pointer')
+            raise VMError('Tried to dereference a NULL pointer')
         if not 0 <= ptr < len(self.mem) - MWORD_SIZE:
             raise VMError(f'Memory ptress out of bounds: {ptr}')
         if ptr % MWORD_SIZE != 0:

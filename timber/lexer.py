@@ -1,25 +1,85 @@
 import string
-from typing import List, Optional
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import List, Optional, Union
 
-from common import Token, TokenKind, Keyword
+
+class TokenKind(Enum):
+    Whitespace = auto()
+    Comma = auto()
+    Eq = auto()
+    Plus = auto()
+    LParen = auto()
+    RParen = auto()
+    LBrack = auto()
+    RBrack = auto()
+    LBrace = auto()
+    RBrace = auto()
+    Excl = auto()
+    Semi = auto()
+    Word = auto()
+    Keyword = auto()
+    Int = auto()
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Keyword(Enum):
+    FnDef = auto()
+    While = auto()
+    If = auto()
+    Var = auto()
+    Return = auto()
+
+    @classmethod
+    def from_str(cls, s: str) -> Optional['Keyword']:
+        return {
+            'def': cls.FnDef,
+            'while': cls.While,
+            'if': cls.If,
+            'var': cls.Var,
+            'return': cls.Return,
+        }.get(s, None)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+TokenValue = Optional[Union[int, str, Keyword]]
+
+
+@dataclass
+class Token:
+    kind: TokenKind
+    index: int
+    value: TokenValue
+
+    def __str__(self) -> str:
+        return f'Token({self.index} {self.kind} {self.value})'
+
+    def __repr__(self) -> str:
+        return str(self)
+
+    @staticmethod
+    def fmt_many(tokens: List['Token']) -> str:
+        return '\n'.join([f'{token.index:03} {token.kind:7} {token.value}'
+                          for addr, token in enumerate(tokens)])
 
 
 SINGLE_CHAR_TOKENS = {
     ',': TokenKind.Comma,
-    '=': TokenKind.Eq,
-    '+': TokenKind.Plus,
     '(': TokenKind.LParen,
     ')': TokenKind.RParen,
     '[': TokenKind.LBrack,
     ']': TokenKind.RBrack,
     '{': TokenKind.LBrace,
     '}': TokenKind.RBrace,
-    '!': TokenKind.Excl,
     ';': TokenKind.Semi,
 }
 
 MULTI_CHAR_TOKENS = (
-    (string.ascii_letters + '_', TokenKind.Word, str),
+    (string.ascii_letters + '_+-=*/<>%!', TokenKind.Word, str),
     (string.digits, TokenKind.Int, int),
 )
 
