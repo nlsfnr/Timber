@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
-# flake8: noqa
 import argparse
 from pathlib import Path
 
-from common import Token
-from lexer import lex
-from parser import parse
-from gen import gen
-from util import fmt_node
-from vm import VM, Program, Instr, InstrKind
+import vm
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('cmd', metavar='CMD', type=str,
-                        choices=['run', 'dbg', 'asm', 'ast', 'lex'])
+                        choices=['run', 'dbg', 'asm', 'ast', 'lex', 'tmp'])
     parser.add_argument('file', metavar='FILE', type=Path)
     args = parser.parse_args()
 
@@ -24,36 +18,25 @@ def main():
     with open(file, 'r') as fh:
         src = fh.read()
 
-    if args.cmd == 'run':
-        tokens = lex(src)
-        node = parse(tokens)
-        unit = gen(node)
-        prog = unit.to_program()
-        vm = VM(prog)
-        vm.loop()
+    if args.cmd == 'tmp':
+        ops = [
+            vm.Op(vm.OpKind.Push, 10),
+            vm.Op(vm.OpKind.VStore, vm.to_ptr(1)),         # [_, 10]
 
-    elif args.cmd == 'dbg':
-        tokens = lex(src)
-        node = parse(tokens)
-        unit = gen(node)
-        prog = unit.to_program()
-        vm = VM(prog)
-        vm.dbg()
+            vm.Op(vm.OpKind.Call, 3),           # [rv, 10]
+            vm.Op(vm.OpKind.Halt, 0),
 
-    elif args.cmd == 'asm':
-        tokens = lex(src)
-        node = parse(tokens)
-        unit = gen(node)
-        print(unit)
+            vm.Op(vm.OpKind.VIncr, vm.to_ptr(2)),
+            vm.Op(vm.OpKind.VLoad, vm.to_ptr(-1)),
+            vm.Op(vm.OpKind.VLoad, vm.to_ptr(-1)),
+            vm.Op(vm.OpKind.Add, 0),
+            vm.Op(vm.OpKind.VDecr, vm.to_ptr(2)),
+            vm.Op(vm.OpKind.Ret, 0),
+        ]
+        m = vm.VM(ops)
+        m.dbg()
 
-    elif args.cmd == 'ast':
-        tokens = lex(src)
-        node = parse(tokens)
-        print(fmt_node(node))
 
-    elif args.cmd == 'lex':
-        tokens = lex(src)
-        print(Token.fmt_many(tokens))
 
 
 if __name__ == '__main__':

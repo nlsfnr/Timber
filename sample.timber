@@ -1,27 +1,33 @@
 {
     def main() {
-        fn();
+        var f;
+        f = fib(10);
+        printd(f);
         return(0)
     };
 
-    def fn() {
+    def printd(d) {
+        print(add(d, 48));
+        print(10);
+        return(0)
+    };
+
+    def fib(n) {
         var i;
-        i = 0;
-        i = inc(i);
-        printd(i);
-        return(0)
-    };
-
-    def inc(x) {
-        return(add(x, 1))
-    };
-
-    def printd(n) {
-        println(add(48, n))
-    };
-
-    def println(x) {
-        print(x);
-        print(10)
+        var a;
+        var b;
+        i = n;
+        a = 0;
+        b = 1;
+        printd(a);
+        while (i) {
+            i = sub(i, 1);
+            var tmp;
+            tmp = b;
+            b = add(a, b);
+            a = tmp
+        };
+        return(a)
     }
+
 }

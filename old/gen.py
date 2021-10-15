@@ -19,20 +19,24 @@ class GenError(Exception):
 @dataclass
 class Namespace:
     stack: List[Dict[str, int]] = field(default_factory=list)
+    _max_depth: int = 0
 
     def get(self, name: str) -> int:
-        offset = 0
         for ns in reversed(self.stack):
             if name in ns:
-                return offset + ns[name]
-            offset += len(ns)
+                return ns[name]
         raise GenError(f'Unknown identifier: {name}')
 
-    def add(self, names: List[str]) -> 'Namespace':
+    def add(self, names: List[str], stack_size: int) -> 'Namespace':
         for name in names:
-            assert name not in self.stack
-            self.stack[-1][name] = len(self.stack[-1]) + 1
+            assert name not in self.stack[-1]
+            depth = self.depth()
+            self.stack[-1][name] = depth + 1
+            self._max_depth = max(self._max_depth, depth)
         return self
+
+    def depth(self) -> int:
+        return sum(len(ns) for ns in self.stack)
 
     def push(self) -> None:
         self.stack.append(dict())
@@ -47,6 +51,7 @@ class Unit:
     labels: Dict[str, int] = field(default_factory=dict)
     jumps: Dict[int, str] = field(default_factory=dict)
     comments: Dict[int, str] = field(default_factory=dict)
+    inline_comments: Dict[int, str] = field(default_factory=dict)
 
     _next_label_id: int = -1
 
@@ -71,9 +76,17 @@ class Unit:
                                 unit.comments[0])
         offset_comments = {addr + addr_offset: comment
                            for addr, comment in unit.comments.items()}
+        if (self.instrs.here in self.inline_comments
+                and 0 in unit.inline_comments):
+            unit.inline_comments[0] = (self.inline_comments[self.instrs.here]
+                                       + '; ' + unit.inline_comments[0])
+        items = unit.inline_comments.items()
+        offset_inline_comments = {addr + addr_offset: comment
+                                  for addr, comment in items}
         self.labels.update(offset_labels)
         self.jumps.update(offset_jumps)
         self.comments.update(offset_comments)
+        self.inline_comments.update(offset_inline_comments)
         self.instrs.extend(unit.instrs)
         return self
 
@@ -98,6 +111,14 @@ class Unit:
             self.comments[self.instrs.here] = comment
         else:
             self.comments[idx] += '\n' + comment
+        return self
+
+    def inline_comment(self, comment: str) -> 'Unit':
+        idx = self.instrs.here - 1
+        if idx not in self.inline_comments:
+            self.inline_comments[idx] = comment
+        else:
+            self.inline_comments[idx] += '; ' + comment
         return self
 
     def noop(self) -> 'Unit':
@@ -174,7 +195,8 @@ class Unit:
                 .load_tos_ptr()
                 .push(offset)
                 .add()
-                .store_tos_ptr())
+                .store_tos_ptr()
+                .inline_comment(f'TOS += {offset}'))
 
     def decr_tos(self, offset: Val) -> 'Unit':
         assert offset >= 0
@@ -182,7 +204,8 @@ class Unit:
                 .load_tos_ptr()
                 .push(offset)
                 .sub()
-                .store_tos_ptr())
+                .store_tos_ptr()
+                .inline_comment(f'TOS -= {offset}'))
 
     def load_tos_ptr(self, offset: Val = 0) -> 'Unit':
         if offset == 0:
@@ -201,10 +224,16 @@ class Unit:
                 .store())
 
     def load_tos(self, offset: Val = 0) -> 'Unit':
-        return self.load_tos_ptr(offset).load()
+        return (self
+                .load_tos_ptr(offset)
+                .load()
+                .inline_comment(f'Load TOS[{offset}]'))
 
     def store_tos(self, offset: Val = 0) -> 'Unit':
-        return self.load_tos_ptr(offset).store()
+        return (self
+                .load_tos_ptr(offset)
+                .store()
+                .inline_comment(f'Store TOS[{offset}]'))
 
     def push_tos(self) -> 'Unit':
         return (self
@@ -234,7 +263,7 @@ class Unit:
     def intrinsics(self) -> 'Unit':
         binary_ops = (
             ('add', Unit().add()),
-            # ('sub', Unit().sub()),
+            ('sub', Unit().sub()),
             # ('and', Unit().and_()),
             # ('or', Unit().or_()),
             # ('shr', Unit().shr()),
@@ -285,8 +314,11 @@ class Unit:
         for i, x in enumerate(self.instrs):
             if i in self.comments:
                 lines.append(self.comments[i])
-            lines.append(f'  {i:03} {x.kind.name:6} '
-                         f'{x.arg if x.arg is not None else ""}')
+            line = (f'  {i:03} {x.kind.name:6} '
+                    f'{(x.arg if x.arg is not None else ""):3}')
+            if i in self.inline_comments:
+                line += f'{"":6};' + self.inline_comments[i]
+            lines.append(line)
         if i + 1 in self.comments:
             lines.append(self.comments[i + 1])
         return '\n'.join(lines)
@@ -405,6 +437,7 @@ def gen_fn_call(fn_call: FnCall, ns: Namespace) -> Unit:
                   Unit().comment(f'call {fn_call.name} {{'))
     return (args
             .call(fn_call.name)
+            .inline_comment(fn_call.name)
             .comment(f'}} call {fn_call.name}'))
 
 
@@ -417,7 +450,7 @@ def gen_lit(lit: Lit, ns: Namespace) -> Unit:
 
 
 def gen_int(int_: Int, ns: Namespace) -> Unit:
-    return Unit().push(int_.value)
+    return Unit().push(int_.value).inline_comment(f'int {int_.value}')
 
 
 def gen_assign(assign: Assign, ns: Namespace) -> Unit:
@@ -426,11 +459,12 @@ def gen_assign(assign: Assign, ns: Namespace) -> Unit:
     ns.pop()
     return (Unit()
             .insert(expr)
-            .store_tos(ns.get(assign.name)))
+            .store_tos(ns.get(assign.name))
+            .inline_comment(assign.name))
 
 
 def gen_var(var: Var, ns: Namespace) -> Unit:
-    return Unit().load_tos(ns.get(var.name))
+    return Unit().load_tos(ns.get(var.name)).inline_comment(var.name)
 
 
 @singledispatch
@@ -442,8 +476,18 @@ def _stack_size_stmt(node: Stmt) -> int:
     return stack_size(node.child)
 
 @stack_size.register
-def _stack_size_bloc(node: Block) -> int:
-    return sum(map(stack_size, node.children))
+def _stack_size_block(node: Block) -> int:
+    static = 0
+    biggest_block = 0
+    for child in node.children:
+        stmt = child.child
+        if isinstance(stmt, [Block, WhileLoop]):
+            block_size = stack_size(stmt)
+            if block_size > biggest_block:
+                biggest_block = block_size
+        else:
+            static += stack_size(stmt)
+    return static + biggest_block
 
 @stack_size.register
 def _stack_size_fn_def(node: FnDef) -> int:
