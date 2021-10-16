@@ -11,7 +11,7 @@ def to_ptr(ptr: MWord) -> MWord:
     return ptr * MWORD_SIZE
 
 
-MEM_CAPACITY = to_ptr(8)
+MEM_CAPACITY = to_ptr(64)
 STACK_PTR = to_ptr(4)
 
 
@@ -25,6 +25,7 @@ class OpKind(Enum):
     Push = auto()
     Pop = auto()
     Rot = auto()
+    Dup = auto()
     # VStack operations
     VLoad = auto()      # stack.push(vstack[vtos + arg])
     VStore = auto()     # vstack[vtos + arg] = stack[-1]
@@ -35,6 +36,7 @@ class OpKind(Enum):
     Ret = auto()        # PC = vstack[vtos]
     Jmp = auto()        # PC = arg
     JmpZ = auto()       # PC = arg if stack[-1] == 0
+    JmpNZ = auto()       # PC = arg if stack[-1] == 0
     # Arithmetic
     Add = auto()
     Sub = auto()
@@ -54,6 +56,9 @@ class OpKind(Enum):
 class Op:
     kind: OpKind
     arg: MWord
+
+    def __str__(self) -> str:
+        return f'{self.kind:8} {self.arg:4}'
 
 
 @dataclass
@@ -80,6 +85,9 @@ class VM:
         elif kind == OpKind.Rot:
             self._needs_stack_depth(2)
             self.stack[-1], self.stack[2] = self.stack[-2], self.stack[-1]
+        elif kind == OpKind.Dup:
+            self._needs_stack_depth(1)
+            self.stack.append(self.stack[-1])
 
         # Arithmetic
         elif kind == OpKind.Add:
@@ -132,7 +140,6 @@ class VM:
             self._check_pc(pc)
             self.pc = pc
         elif kind == OpKind.Jmp:
-            self._needs_stack_depth(1)
             self._check_pc(arg)
             self.pc = arg
         elif kind == OpKind.JmpZ:
@@ -140,6 +147,12 @@ class VM:
             self._check_pc(arg)
             guard = self.stack.pop()
             if guard == 0:
+                self.pc = arg
+        elif kind == OpKind.JmpNZ:
+            self._needs_stack_depth(1)
+            self._check_pc(arg)
+            guard = self.stack.pop()
+            if guard != 0:
                 self.pc = arg
 
         # Memory
@@ -208,7 +221,7 @@ class VM:
         if ptr == 0:
             raise VMError('Tried to dereference a NULL pointer')
         if not 0 <= ptr < len(self.mem) - MWORD_SIZE:
-            raise VMError(f'Memory ptress out of bounds: {ptr}')
+            raise VMError(f'Memory ptr out of bounds: {ptr}')
         if ptr % MWORD_SIZE != 0:
             raise VMError(f'Misaligned memory ptress: {ptr}')
 

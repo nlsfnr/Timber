@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from timber import vm, parser, lexer
+from timber import vm, parser, lexer, codegen
 
 
 def main():
@@ -27,7 +27,33 @@ def main():
         tokens = lexer.lex(src)
         print(lexer.Token.fmt_many(tokens))
 
+    if args.cmd == 'asm':
+        tokens = lexer.lex(src)
+        ast = parser.parse_program(tokens)
+        unit = codegen.gen_program(ast).link()
+        print(unit)
 
+    if args.cmd == 'dbg':
+        tokens = lexer.lex(src)
+        ast = parser.parse_program(tokens)
+        unit = (codegen
+                .gen_program(ast)
+                .runnable()
+                .builtins()
+                .link())
+        m = vm.VM(unit.ops)
+        m.dbg()
+
+    if args.cmd == 'tmp':
+        from timber.codegen import codegen as cg
+
+        tokens = lexer.lex(src)
+        ast = parser.parse_program(tokens)
+
+        fn_def = ast.fn_defs[0]
+        unit = cg.gen_fn_def(fn_def, dict())
+        print(fn_def)
+        print(cg.stack_required(fn_def))
 
 if __name__ == '__main__':
     main()

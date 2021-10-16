@@ -1,6 +1,7 @@
 from .nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt, SimpleStmt,
                     Expr, WhileStmt, IfStmt, FnCall, Var, Lit, IntLit,
-                    InfixFnCall, Program, DefaultFnCall, Node)
+                    InfixFnCall, Program, DefaultFnCall, Assign, ReturnStmt,
+                    Node)
 
 
 def fmt_node(node: Node, lvl: int = 0) -> str:
@@ -13,7 +14,9 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
     elif isinstance(node, Block):
         stmt_s = '\n'.join(fmt_node(s, lvl + 1) for s in node.stmts)
         var_decl_s = '\n'.join(fmt_node(v, lvl + 1) for v in node.var_decls)
-        s = f'Block\n{var_decl_s}\n{stmt_s}'
+        s = 'Block'
+        s += f'\n{var_decl_s}' if var_decl_s else ''
+        s += f'\n{stmt_s}' if stmt_s else ''
     elif isinstance(node, Stmt):
         s = 'Stmt\n' + fmt_node(node.child, lvl + 1)
     elif isinstance(node, CompountStmt):
@@ -39,9 +42,9 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
     elif isinstance(node, IntLit,):
         s = f'IntLit {node.value}\n'
     elif isinstance(node, InfixFnCall):
-        s = f'InfixFnCall {node.name}'
+        s = f'InfixFnCall {node.name}\n'
         s += fmt_node(node.arg_1, lvl + 1)
-        s += fmt_node(node.arg_2, lvl + 2)
+        s += fmt_node(node.arg_2, lvl + 1)
     elif isinstance(node, Program):
         var_decl_s = '\n'.join(fmt_node(v, lvl + 1) for v in node.var_decls)
         fn_def_s = '\n'.join(fmt_node(f, lvl + 1) for f in node.fn_defs)
@@ -49,8 +52,12 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
     elif isinstance(node, Var):
         s = f'Var {node.name}'
     elif isinstance(node, DefaultFnCall):
-        arg_s = '\n'.join(fmt_node(a, lvl + 1) for a in node.args)
+        arg_s = ''.join(fmt_node(a, lvl + 1) for a in node.args)
         s = f'DefaultFnCall {node.name}\n{arg_s}'
+    elif isinstance(node, Assign):
+        s = f'Assign {node.name}\n' + fmt_node(node.expr, lvl + 1)
+    elif isinstance(node, ReturnStmt):
+        s = f'Return\n' + fmt_node(node.child, lvl + 1)
     else:
-        raise NotImplementedError
-    return '  ' * lvl + s
+        raise NotImplementedError(f'Unknown node: {node}')
+    return f'{node.span[0]:3} {node.span[1]:3} ' + '  ' * lvl + s

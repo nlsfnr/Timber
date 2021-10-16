@@ -69,17 +69,20 @@ class Token:
 
 SINGLE_CHAR_TOKENS = {
     ',': TokenKind.Comma,
+    '=': TokenKind.Eq,
+    '+': TokenKind.Plus,
     '(': TokenKind.LParen,
     ')': TokenKind.RParen,
     '[': TokenKind.LBrack,
     ']': TokenKind.RBrack,
     '{': TokenKind.LBrace,
     '}': TokenKind.RBrace,
+    '!': TokenKind.Excl,
     ';': TokenKind.Semi,
 }
 
 MULTI_CHAR_TOKENS = (
-    (string.ascii_letters + '_+-=*/<>%!', TokenKind.Word, str),
+    (string.ascii_letters + '_', TokenKind.Word, str),
     (string.digits, TokenKind.Int, int),
 )
 

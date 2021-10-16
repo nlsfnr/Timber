@@ -41,6 +41,12 @@ class ReturnStmt(Node):
 
 
 @dataclass
+class Assign(Node):
+    name: str
+    expr: 'Expr'
+
+
+@dataclass
 class WhileStmt(Node):
     guard: 'Expr'
     body: 'Block'
@@ -59,7 +65,10 @@ class Var(Node):
 
 @dataclass
 class Expr(Node):
-    child: Union[FnCall, Var, Lit]
+    # Recursive case is for parenthesis around expr for precedence in infix
+    # notation. Not collapsing this into a flat expression maintains that
+    # information.
+    child: Union[FnCall, Var, Lit, 'Expr', Assign]
 
 
 @dataclass
@@ -87,7 +96,7 @@ class SimpleStmt(Node):
 
 @dataclass
 class CompountStmt(Node):
-    child: Union[WhileStmt, IfStmt]
+    child: Union[WhileStmt, IfStmt, Block]
 
 
 @dataclass

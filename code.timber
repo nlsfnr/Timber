@@ -1,8 +1,10 @@
 var x;
 
-def main(var a) {
-    var x;
-    while (x) {
-        add(x, 1);
+def main() {
+    var i;
+    i = 10;
+    while (i) {
+        i = sub(i, 1);
     };
+    return 0;
 }

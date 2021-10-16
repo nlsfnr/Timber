@@ -3,7 +3,7 @@ from typing import List, Tuple, Optional
 from ..lexer import Token, TokenKind, TokenValue, Keyword
 from .nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt, SimpleStmt,
                     Expr, WhileStmt, IfStmt, FnCall, Var, Lit, IntLit,
-                    InfixFnCall, Program, DefaultFnCall, ReturnStmt)
+                    InfixFnCall, Program, DefaultFnCall, ReturnStmt, Assign)
 
 
 Ts = List[Token]
@@ -98,6 +98,9 @@ def parse_stmt(ts: Ts, j: int) -> Tuple[Stmt, int]:
         else:
             msg = f'Expected keywords While, If, Return, got {t.value}'
             raise ParserError(msg, t)
+    elif t.kind == TokenKind.LBrace:
+        comp_stmt, i = parse_comp_stmt(ts, i)
+        return Stmt((j, i), comp_stmt), i
     simple_stmt, i = parse_simple_stmt(ts, i)
     return Stmt((j, i), simple_stmt), i
 
@@ -105,12 +108,16 @@ def parse_stmt(ts: Ts, j: int) -> Tuple[Stmt, int]:
 def parse_comp_stmt(ts: Ts, j: int) -> Tuple[CompountStmt, int]:
     i = j
     t = ts[i]
-    if t.value == Keyword.While:
-        while_stmt, i = parse_while_stmt(ts, i)
-        return CompountStmt((j, i), while_stmt), i
-    if t.value == Keyword.If:
-        if_stmt, i = parse_if_stmt(ts, i)
-        return CompountStmt((j, i), if_stmt), i
+    if t.kind == TokenKind.Keyword:
+        if t.value == Keyword.While:
+            while_stmt, i = parse_while_stmt(ts, i)
+            return CompountStmt((j, i), while_stmt), i
+        if t.value == Keyword.If:
+            if_stmt, i = parse_if_stmt(ts, i)
+            return CompountStmt((j, i), if_stmt), i
+    elif t.kind == TokenKind.LBrace:
+        block, i = parse_block(ts, i)
+        return CompountStmt((j, i), block), i
     msg = f'Expected keywords While, If, got {t.value}'
     raise ParserError(msg, t)
 
@@ -119,7 +126,6 @@ def parse_simple_stmt(ts: Ts, j: int) -> Tuple[SimpleStmt, int]:
     i = j
     t = ts[i]
     if t.kind == TokenKind.Keyword:
-        t, i = _consume_value(ts, i, TokenKind.Keyword, Keyword.Return)
         ret_stmt, i = parse_ret_stmt(ts, i)
         return SimpleStmt((j, i), ret_stmt), i
     expr, i = parse_expr(ts, i)
@@ -131,6 +137,16 @@ def parse_ret_stmt(ts: Ts, j: int) -> Tuple[ReturnStmt, int]:
     _, i = _consume_value(ts, i, TokenKind.Keyword, Keyword.Return)
     expr, i = parse_expr(ts, i)
     return ReturnStmt((j, i), expr), i
+
+
+def parse_assign(ts: Ts, j: int) -> Tuple[Assign, int]:
+    i = j
+    t, i = _consume_kind(ts, i, TokenKind.Word)
+    assert isinstance(t.value, str)
+    name = t.value
+    _, i = _consume_kind(ts, i, TokenKind.Eq)
+    expr, i = parse_expr(ts, i)
+    return Assign((j, i), name, expr), i
 
 
 def parse_while_stmt(ts: Ts, j: int) -> Tuple[WhileStmt, int]:
@@ -153,21 +169,26 @@ def parse_if_stmt(ts: Ts, j: int) -> Tuple[IfStmt, int]:
     return IfStmt((j, i), guard, body), i
 
 
-def parse_expr(ts: Ts, j: int) -> Tuple[Expr, int]:
+def parse_expr(ts: Ts, j: int, accept_infix: bool = True) -> Tuple[Expr, int]:
     i = j
     t = ts[i]
-    lits = [TokenKind.Int]
-    if t.kind == TokenKind.Word:
-        if i + 1 >= len(ts):
-            raise _unexpected_eot()
-        t1 = ts[i + 1]
-        if t1.kind in [TokenKind.LParen, TokenKind.Word]:
+    if t.kind == TokenKind.LParen:
+        _, i = _consume_kind(ts, i, TokenKind.LParen)
+        child, i = parse_expr(ts, i)
+        _, i = _consume_kind(ts, i, TokenKind.RParen)
+        return Expr((j, i), child), i
+    elif t.kind == TokenKind.Word:
+        t1 = _peek(ts, i, 1)
+        if t1.kind == TokenKind.LParen:
             fn_call, i = parse_fn_call(ts, i)
             return Expr((j, i), fn_call), i
+        elif t1.kind == TokenKind.Eq:
+            assign, i = parse_assign(ts, i)
+            return Expr((j, i), assign), i
         else:
             var, i = parse_var(ts, i)
             return Expr((j, i), var), i
-    elif t.kind in lits:
+    elif t.kind == TokenKind.Int:
         lit, i = parse_lit(ts, i)
         return Expr((j, i), lit), i
     raise ParserError('Unexpected token', t)
@@ -176,8 +197,7 @@ def parse_expr(ts: Ts, j: int) -> Tuple[Expr, int]:
 def parse_infix_fn_call(ts: Ts, j: int) -> Tuple[InfixFnCall, int]:
     raise NotImplementedError
     i = j
-    print(ts[i])
-    arg_1, i = parse_expr(ts, i)
+    arg_1, i = parse_expr(ts, i, accept_infix=False)
     t, i = _consume_kind(ts, i, TokenKind.Word)
     assert isinstance(t.value, str)
     name = t.value
@@ -207,9 +227,7 @@ def parse_var(ts: Ts, j: int) -> Tuple[Var, int]:
 
 def parse_fn_call(ts: Ts, j: int) -> Tuple[FnCall, int]:
     i = j
-    if i + 1 >= len(ts):
-        raise _unexpected_eot()
-    t1 = ts[i + 1]
+    t1 = _peek(ts, i, 1)
     if t1.kind == TokenKind.LParen:
         default_fn_call, i = parse_default_fn_call(ts, i)
         return FnCall((j, i), default_fn_call), i
@@ -245,6 +263,12 @@ def parse_var_decl(ts: Ts, j: int) -> Tuple[VarDecl, int]:
     t, i = _consume_kind(ts, i, TokenKind.Word)
     assert isinstance(t.value, str)
     return VarDecl((j, i), t.value), i
+
+
+def _peek(ts: Ts, i: int, d: int = 1) -> Token:
+    if i + d >= len(ts):
+        raise _unexpected_eot()
+    return ts[i + d]
 
 
 def _unexpected_eot() -> ParserError:
