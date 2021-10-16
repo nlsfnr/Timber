@@ -39,6 +39,9 @@ class Unit:
     def halt(self) -> 'Unit':
         return self.__add_op(OpKind.Halt, 0)
 
+    def print(self) -> 'Unit':
+        return self.__add_op(OpKind.Print, 0)
+
     def push(self, arg: MWord) -> 'Unit':
         return self.__add_op(OpKind.Push, arg)
 
@@ -125,6 +128,11 @@ class Unit:
 
     def builtins(self) -> 'Unit':
         return (self
+                .target_addr('print_char')
+                .v_load(to_ptr(1))
+                .print()
+                .push(0)
+                .ret()
                 .target_addr('add')
                 .v_load(to_ptr(1))
                 .v_load(to_ptr(2))
@@ -134,6 +142,16 @@ class Unit:
                 .v_load(to_ptr(1))
                 .v_load(to_ptr(2))
                 .sub()
+                .ret()
+                .target_addr('mload')
+                .v_load(to_ptr(1))
+                .load()
+                .ret()
+                .target_addr('mstore')
+                .v_load(to_ptr(2))  # The ptr
+                .v_load(to_ptr(1))  # The MWord
+                .store()
+                .v_load(to_ptr(2))  # Return the ptr
                 .ret())
 
     def link(self) -> 'Unit':
@@ -308,8 +326,8 @@ def gen_assign(n: Assign, ns: Namespace, ctx: Context) -> Unit:
 def gen_while_stmt(n: WhileStmt, ns: Namespace, ctx: Context) -> Unit:
     guard_expr = gen_expr(n.guard, ns, ctx)
     body = gen_block(n.body, ns, ctx)
-    guard_name = str(uuid4())
-    start_name = str(uuid4())
+    guard_name = '__while_guard_' + str(uuid4())
+    start_name = '__while_start_' + str(uuid4())
     return (Unit()
             .jmp_addr(guard_name)
             .jmp(_DUMMY_ADDR)
@@ -322,7 +340,16 @@ def gen_while_stmt(n: WhileStmt, ns: Namespace, ctx: Context) -> Unit:
 
 
 def gen_if_stmt(n: IfStmt, ns: Namespace, ctx: Context) -> Unit:
-    raise NotImplementedError
+    guard_expr = gen_expr(n.guard, ns, ctx)
+    body = gen_block(n.body, ns, ctx)
+    guard_name = '__if_guard_' + str(uuid4())
+    end_name = '__if_end_' + str(uuid4())
+    return (Unit()
+            .append(guard_expr)
+            .jmp_addr(end_name)
+            .jmp_z(_DUMMY_ADDR)
+            .append(body)
+            .target_addr(end_name))
 
 
 def gen_return_stmt(n: ReturnStmt, ns: Namespace, ctx: Context) -> Unit:

@@ -1,6 +1,7 @@
+import sys
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import List
+from typing import List, BinaryIO
 
 
 MWord = int
@@ -11,7 +12,7 @@ def to_ptr(ptr: MWord) -> MWord:
     return ptr * MWORD_SIZE
 
 
-MEM_CAPACITY = to_ptr(64)
+MEM_CAPACITY = to_ptr(1024)
 STACK_PTR = to_ptr(4)
 
 
@@ -21,6 +22,7 @@ class VMError(Exception):
 
 class OpKind(Enum):
     Halt = auto()
+    Print = auto()
     # Stack operations
     Push = auto()
     Pop = auto()
@@ -69,6 +71,7 @@ class VM:
     stack: List[MWord] = field(default_factory=list)
     mem: bytearray = field(default_factory=lambda: bytearray(MEM_CAPACITY))
     halted: bool = False
+    stdout: BinaryIO = sys.stdout.buffer
 
     def step(self) -> 'VM':
         assert 0 <= self.pc < len(self.ops)
@@ -170,6 +173,10 @@ class VM:
         # System
         elif kind == OpKind.Halt:
             self.halted = True
+        elif kind == OpKind.Print:
+            self._needs_stack_depth(1)
+            val = self.stack.pop()
+            self.stdout.write(val.to_bytes(1, 'big'))
 
         else:
             raise NotImplementedError

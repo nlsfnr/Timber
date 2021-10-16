@@ -30,7 +30,11 @@ def main():
     if args.cmd == 'asm':
         tokens = lexer.lex(src)
         ast = parser.parse_program(tokens)
-        unit = codegen.gen_program(ast).link()
+        unit = (codegen
+                .gen_program(ast)
+                .runnable()
+                .builtins()
+                .link())
         print(unit)
 
     if args.cmd == 'dbg':
@@ -43,6 +47,17 @@ def main():
                 .link())
         m = vm.VM(unit.ops)
         m.dbg()
+
+    if args.cmd == 'run':
+        tokens = lexer.lex(src)
+        ast = parser.parse_program(tokens)
+        unit = (codegen
+                .gen_program(ast)
+                .runnable()
+                .builtins()
+                .link())
+        m = vm.VM(unit.ops)
+        m.run()
 
     if args.cmd == 'tmp':
         from timber.codegen import codegen as cg

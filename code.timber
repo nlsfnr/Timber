@@ -1,10 +1,44 @@
-var x;
-
 def main() {
-    var i;
-    i = 10;
-    while (i) {
-        i = sub(i, 1);
-    };
+    var s;
+    var s_;
+    s = 512;
+    s_ = s;
+    mstore(s_, 104);
+    s_ = add(s_, 4);
+    mstore(s_, 101);
+    s_ = add(s_, 4);
+    mstore(s_, 108);
+    s_ = add(s_, 4);
+    mstore(s_, 108);
+    s_ = add(s_, 4);
+    mstore(s_, 111);
+    s_ = add(s_, 4);
+    mstore(s_, 32);
+    s_ = add(s_, 4);
+    mstore(s_, 119);
+    s_ = add(s_, 4);
+    mstore(s_, 111);
+    s_ = add(s_, 4);
+    mstore(s_, 114);
+    s_ = add(s_, 4);
+    mstore(s_, 108);
+    s_ = add(s_, 4);
+    mstore(s_, 100);
+    s_ = add(s_, 4);
+    mstore(s_, 33);
+    s_ = add(s_, 4);
+    mstore(s_, 10);
+    s_ = add(s_, 4);
+    mstore(s_, 0);
+    print(s);
     return 0;
+}
+
+def print(var s) {
+    var c;
+    while (c = mload(s)) {
+        print_char(c);
+        s = add(s, 4);
+    };
+    return s;
 }
