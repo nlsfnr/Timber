@@ -1,12 +1,12 @@
 from .nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt, SimpleStmt,
                     Expr, WhileStmt, IfStmt, FnCall, Var, Lit, IntLit,
                     InfixFnCall, Program, DefaultFnCall, Assign, ReturnStmt,
-                    Node)
+                    Node, StrLit)
 
 
 def fmt_node(node: Node, lvl: int = 0) -> str:
     if isinstance(node, VarDecl):
-        s = f'VarDecl {node.name}'
+        s = f'VarDecl {node.name}\n'
     elif isinstance(node, FnDef):
         args_s = ', '.join(a.name for a in node.arg_decls)
         s = f'FnDef {node.name}({args_s})\n'
@@ -17,6 +17,8 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
         s = 'Block'
         s += f'\n{var_decl_s}' if var_decl_s else ''
         s += f'\n{stmt_s}' if stmt_s else ''
+        if not (var_decl_s or stmt_s):
+            s += '\n'
     elif isinstance(node, Stmt):
         s = 'Stmt\n' + fmt_node(node.child, lvl + 1)
     elif isinstance(node, CompountStmt):
@@ -41,6 +43,8 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
         s = 'Lit\n' + fmt_node(node.child, lvl + 1)
     elif isinstance(node, IntLit,):
         s = f'IntLit {node.value}\n'
+    elif isinstance(node, StrLit,):
+        s = f'StrLit {node.value}\n'
     elif isinstance(node, InfixFnCall):
         s = f'InfixFnCall {node.name}\n'
         s += fmt_node(node.arg_1, lvl + 1)
@@ -48,16 +52,16 @@ def fmt_node(node: Node, lvl: int = 0) -> str:
     elif isinstance(node, Program):
         var_decl_s = '\n'.join(fmt_node(v, lvl + 1) for v in node.var_decls)
         fn_def_s = '\n'.join(fmt_node(f, lvl + 1) for f in node.fn_defs)
-        s = f'Program\n{var_decl_s}\n{fn_def_s}'
+        s = f'Program\n{var_decl_s}\n{fn_def_s}\n'
     elif isinstance(node, Var):
-        s = f'Var {node.name}'
+        s = f'Var {node.name}\n'
     elif isinstance(node, DefaultFnCall):
         arg_s = ''.join(fmt_node(a, lvl + 1) for a in node.args)
         s = f'DefaultFnCall {node.name}\n{arg_s}'
     elif isinstance(node, Assign):
         s = f'Assign {node.name}\n' + fmt_node(node.expr, lvl + 1)
     elif isinstance(node, ReturnStmt):
-        s = f'Return\n' + fmt_node(node.child, lvl + 1)
+        s = 'Return\n' + fmt_node(node.child, lvl + 1)
     else:
         raise NotImplementedError(f'Unknown node: {node}')
     return f'{node.span[0]:3} {node.span[1]:3} ' + '  ' * lvl + s

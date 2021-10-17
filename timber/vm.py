@@ -12,8 +12,14 @@ def to_ptr(ptr: MWord) -> MWord:
     return ptr * MWORD_SIZE
 
 
-MEM_CAPACITY = to_ptr(1024)
-STACK_PTR = to_ptr(4)
+def align(ptr: MWord) -> MWord:
+    if ptr % MWORD_SIZE == 0:
+        return ptr
+    return (ptr // MWORD_SIZE + 1) * MWORD_SIZE
+
+
+DEFAULT_MEM_CAPACITY = to_ptr(1024)
+DEFAULT_STACK_PTR = to_ptr(4)
 
 
 class VMError(Exception):
@@ -67,9 +73,10 @@ class Op:
 class VM:
     ops: List[Op]
     pc: MWord = 0
-    vtos: MWord = STACK_PTR
+    mem: bytearray = field(
+            default_factory=lambda: bytearray(DEFAULT_MEM_CAPACITY))
+    vtos: MWord = DEFAULT_STACK_PTR
     stack: List[MWord] = field(default_factory=list)
-    mem: bytearray = field(default_factory=lambda: bytearray(MEM_CAPACITY))
     halted: bool = False
     stdout: BinaryIO = sys.stdout.buffer
 

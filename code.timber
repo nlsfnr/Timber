@@ -1,44 +1,34 @@
 def main() {
-    var s;
-    var s_;
-    s = 512;
-    s_ = s;
-    mstore(s_, 104);
-    s_ = add(s_, 4);
-    mstore(s_, 101);
-    s_ = add(s_, 4);
-    mstore(s_, 108);
-    s_ = add(s_, 4);
-    mstore(s_, 108);
-    s_ = add(s_, 4);
-    mstore(s_, 111);
-    s_ = add(s_, 4);
-    mstore(s_, 32);
-    s_ = add(s_, 4);
-    mstore(s_, 119);
-    s_ = add(s_, 4);
-    mstore(s_, 111);
-    s_ = add(s_, 4);
-    mstore(s_, 114);
-    s_ = add(s_, 4);
-    mstore(s_, 108);
-    s_ = add(s_, 4);
-    mstore(s_, 100);
-    s_ = add(s_, 4);
-    mstore(s_, 33);
-    s_ = add(s_, 4);
-    mstore(s_, 10);
-    s_ = add(s_, 4);
-    mstore(s_, 0);
-    print(s);
+    println("Hello world!");
     return 0;
+}
+
+def println(var s) {
+    var rv;
+    rv = print(s);
+    print_char(10);
+    return rv;
 }
 
 def print(var s) {
     var c;
-    while (c = mload(s)) {
+    while (c = load_byte(s)) {
         print_char(c);
-        s = add(s, 4);
+        s = add(s, 1);
     };
     return s;
+}
+
+def load_byte(var ptr) {
+    var aligned_ptr;
+    var shift;
+    aligned_ptr = and(4294967292, ptr);
+    shift = shl(and(3, ptr), 3);
+    var word;
+    word = mload(aligned_ptr);
+    var mask;
+    mask = shl(255, shift);
+    word = and(word, mask);
+    word = shr(word, shift);
+    return word;
 }

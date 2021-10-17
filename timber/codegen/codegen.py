@@ -1,16 +1,17 @@
 from uuid import uuid4
 from functools import reduce
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from ..parser.nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt,
                             SimpleStmt, Expr, WhileStmt, IfStmt, FnCall, Var,
                             Lit, IntLit, InfixFnCall, Program, DefaultFnCall,
-                            Assign, ReturnStmt, Node)
-from ..vm import MWord, Op, OpKind, to_ptr
+                            Assign, ReturnStmt, Node, StrLit)
+from ..vm import MWord, Op, OpKind, to_ptr, align, VM
 
 
 _DUMMY_ADDR = 0
+_STR_LIT_ADDR = to_ptr(1)
 
 
 class CodegenError(Exception):
@@ -18,7 +19,45 @@ class CodegenError(Exception):
 
 
 @dataclass
+class Context:
+    stack_ptr_offset: MWord = 0
+    _str_addrs: Dict[bytes, MWord] = field(default_factory=dict)
+    _str_addr_offset: MWord = _STR_LIT_ADDR
+
+    def set_stack_ptr_offset(self, offset: MWord) -> 'Context':
+        self.stack_ptr_offset = offset
+        return self
+
+    def str_lit(self, string: str) -> MWord:
+        bytes_ = bytes(string, 'utf-8')
+        if bytes_ not in self._str_addrs:
+            self._str_addrs[bytes_] = self._str_addr_offset
+            # + 1 for the 0-terminator
+            self._str_addr_offset += align(len(bytes_) + 1)
+            return self._str_addrs[bytes_]
+
+    def build_mem(self, size: MWord) -> Tuple[bytearray, MWord]:
+        if size <= self._str_addr_offset:
+            raise CodegenError('Mem size smaller than static strings')
+        mem = bytearray(size)
+        for bytes_, ptr in self._str_addrs.items():
+            mem[ptr:ptr + len(bytes_) + 1] = bytes_ + bytes(0)
+        return mem, self._str_addr_offset
+
+
+@dataclass
+class Runnable:
+    ops: List[Op]
+    mem: bytearray
+    vtos: MWord
+
+    def vm(self) -> VM:
+        return VM(ops=list(self.ops), mem=bytearray(self.mem), vtos=self.vtos)
+
+
+@dataclass
 class Unit:
+    ctx: Context
     ops: List[Op] = field(default_factory=list)
     target_addrs: Dict[str, int] = field(default_factory=dict)
     jmp_addrs: Dict[int, str] = field(default_factory=dict)
@@ -119,12 +158,18 @@ class Unit:
         self.ops.extend(unit.ops)
         return self
 
-    def runnable(self) -> 'Unit':
-        return (self.__class__()
+    def entrypoint(self) -> 'Unit':
+        return (self.__class__(self.ctx)
                 .jmp_addr('main')
                 .call(_DUMMY_ADDR)
                 .halt()
                 .append(self))
+
+    def runnable(self) -> Runnable:
+        mem_size = to_ptr(1024)
+        mem, vtos = self.ctx.build_mem(mem_size)
+        ops = self.ops
+        return Runnable(ops=ops, mem=mem, vtos=vtos)
 
     def builtins(self) -> 'Unit':
         return (self
@@ -142,6 +187,26 @@ class Unit:
                 .v_load(to_ptr(1))
                 .v_load(to_ptr(2))
                 .sub()
+                .ret()
+                .target_addr('shl')
+                .v_load(to_ptr(1))
+                .v_load(to_ptr(2))
+                .shl()
+                .ret()
+                .target_addr('shr')
+                .v_load(to_ptr(1))
+                .v_load(to_ptr(2))
+                .shr()
+                .ret()
+                .target_addr('and')
+                .v_load(to_ptr(1))
+                .v_load(to_ptr(2))
+                .and_()
+                .ret()
+                .target_addr('or')
+                .v_load(to_ptr(1))
+                .v_load(to_ptr(2))
+                .or_()
                 .ret()
                 .target_addr('mload')
                 .v_load(to_ptr(1))
@@ -174,11 +239,6 @@ class Unit:
                 s += f'{fn_map[i]}'
             s += '\n'
         return s
-
-
-@dataclass
-class Context:
-    stack_ptr_offset: MWord
 
 
 @dataclass
@@ -232,15 +292,16 @@ def gen(n: Node) -> Unit:
 def gen_program(n: Program) -> Unit:
     globals_: Dict[str, MWord] = {var_decl.name: idx
                                   for idx, var_decl in enumerate(n.var_decls)}
-    return Unit().extend([gen_fn_def(fn_def, globals_)
-                          for fn_def in n.fn_defs])
+    ctx = Context()
+    return Unit(ctx).extend([gen_fn_def(fn_def, globals_, ctx)
+                             for fn_def in n.fn_defs])
 
 
-def gen_fn_def(n: FnDef, globals_: Dict[str, MWord]) -> Unit:
+def gen_fn_def(n: FnDef, globals_: Dict[str, MWord], ctx: Context) -> Unit:
     ns = Namespace(globals_)
     ns.set_var_decls(n.arg_decls)
-    ctx = Context(stack_required(n) + to_ptr(1))
-    unit = Unit().target_addr(n.name)
+    ctx.set_stack_ptr_offset(stack_required(n) + to_ptr(1))
+    unit = Unit(ctx).target_addr(n.name)
     return (unit
             .v_incr(ctx.stack_ptr_offset)
             .append(gen_block(n.body, ns, ctx))
@@ -251,7 +312,7 @@ def gen_fn_def(n: FnDef, globals_: Dict[str, MWord]) -> Unit:
 def gen_block(n: Block, ns: Namespace, ctx: Context) -> Unit:
     ns = ns.push_block()
     ns.set_var_decls(n.var_decls)
-    return Unit().extend([gen_stmt(s, ns, ctx) for s in n.stmts])
+    return Unit(ctx).extend([gen_stmt(s, ns, ctx) for s in n.stmts])
 
 
 def gen_stmt(n: Stmt, ns: Namespace, ctx: Context) -> Unit:
@@ -306,7 +367,7 @@ def gen_default_fn_call(n: DefaultFnCall, ns: Namespace, ctx: Context) -> Unit:
     arg_exprs = [gen_expr(expr, ns, ctx) for expr in n.args]
     arg_exprs_with_vstore = [e.v_store(to_ptr(i + 1))
                              for i, e in enumerate(arg_exprs)]
-    arg_setup = Unit().extend(arg_exprs_with_vstore)
+    arg_setup = Unit(ctx).extend(arg_exprs_with_vstore)
     return arg_setup.jmp_addr(n.name).call(_DUMMY_ADDR)
 
 
@@ -315,12 +376,12 @@ def gen_infix_fn_call(n: InfixFnCall, ns: Namespace, ctx: Context) -> Unit:
 
 
 def gen_var(n: Var, ns: Namespace, ctx: Context) -> Unit:
-    return Unit().v_load(ns.get_offset(n.name, ctx))
+    return Unit(ctx).v_load(ns.get_offset(n.name, ctx))
 
 
 def gen_assign(n: Assign, ns: Namespace, ctx: Context) -> Unit:
     expr = gen_expr(n.expr, ns, ctx)
-    return Unit().append(expr).dup().v_store(ns.get_offset(n.name, ctx))
+    return Unit(ctx).append(expr).dup().v_store(ns.get_offset(n.name, ctx))
 
 
 def gen_while_stmt(n: WhileStmt, ns: Namespace, ctx: Context) -> Unit:
@@ -328,7 +389,7 @@ def gen_while_stmt(n: WhileStmt, ns: Namespace, ctx: Context) -> Unit:
     body = gen_block(n.body, ns, ctx)
     guard_name = '__while_guard_' + str(uuid4())
     start_name = '__while_start_' + str(uuid4())
-    return (Unit()
+    return (Unit(ctx)
             .jmp_addr(guard_name)
             .jmp(_DUMMY_ADDR)
             .target_addr(start_name)
@@ -342,9 +403,8 @@ def gen_while_stmt(n: WhileStmt, ns: Namespace, ctx: Context) -> Unit:
 def gen_if_stmt(n: IfStmt, ns: Namespace, ctx: Context) -> Unit:
     guard_expr = gen_expr(n.guard, ns, ctx)
     body = gen_block(n.body, ns, ctx)
-    guard_name = '__if_guard_' + str(uuid4())
     end_name = '__if_end_' + str(uuid4())
-    return (Unit()
+    return (Unit(ctx)
             .append(guard_expr)
             .jmp_addr(end_name)
             .jmp_z(_DUMMY_ADDR)
@@ -354,18 +414,27 @@ def gen_if_stmt(n: IfStmt, ns: Namespace, ctx: Context) -> Unit:
 
 def gen_return_stmt(n: ReturnStmt, ns: Namespace, ctx: Context) -> Unit:
     expr = gen_expr(n.child, ns, ctx)
-    return (Unit()
+    return (Unit(ctx)
             .append(expr)
             .v_decr(ctx.stack_ptr_offset)
             .ret())
 
 
 def gen_int_lit(n: IntLit, ns: Namespace, ctx: Context) -> Unit:
-    return Unit().push(n.value)
+    return Unit(ctx).push(n.value)
 
 
 def gen_lit(n: Lit, ns: Namespace, ctx: Context) -> Unit:
-    return gen_int_lit(n.child, ns, ctx)
+    if isinstance(n.child, IntLit):
+        return gen_int_lit(n.child, ns, ctx)
+    elif isinstance(n.child, StrLit):
+        return gen_str_lit(n.child, ns, ctx)
+    raise CodegenError('Expected IntLit or StrLit', n)
+
+
+def gen_str_lit(n: StrLit, ns: Namespace, ctx: Context) -> Unit:
+    ptr = ctx.str_lit(n.value)
+    return Unit(ctx).push(ptr)
 
 
 def stack_required(n: Node) -> MWord:

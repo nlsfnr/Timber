@@ -20,6 +20,7 @@ class TokenKind(Enum):
     Word = auto()
     Keyword = auto()
     Int = auto()
+    Str = auto()
 
     def __str__(self) -> str:
         return self.name
@@ -114,7 +115,15 @@ def lex(src: str) -> List[Token]:
                 i += 1
         elif c in string.whitespace:
             i += 1
-            continue
+        elif c == '"':
+            i += 1
+            j = i
+            while src[j] != '"':
+                j += 1
+            buffer = src[i:j]
+            j += 1
+            tokens.append(Token(TokenKind.Str, i, buffer))
+            i = j
         elif c in SINGLE_CHAR_TOKENS:
             token_kind = SINGLE_CHAR_TOKENS[c]
             tokens.append(Token(token_kind, i, None))

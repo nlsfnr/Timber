@@ -13,8 +13,13 @@ class IntLit(Node):
 
 
 @dataclass
+class StrLit(Node):
+    value: str
+
+
+@dataclass
 class Lit(Node):
-    child: Union[IntLit]
+    child: Union[IntLit, StrLit]
 
 
 @dataclass

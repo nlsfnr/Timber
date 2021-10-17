@@ -3,7 +3,8 @@ from typing import List, Tuple, Optional
 from ..lexer import Token, TokenKind, TokenValue, Keyword
 from .nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt, SimpleStmt,
                     Expr, WhileStmt, IfStmt, FnCall, Var, Lit, IntLit,
-                    InfixFnCall, Program, DefaultFnCall, ReturnStmt, Assign)
+                    InfixFnCall, Program, DefaultFnCall, ReturnStmt, Assign,
+                    StrLit)
 
 
 Ts = List[Token]
@@ -188,7 +189,7 @@ def parse_expr(ts: Ts, j: int, accept_infix: bool = True) -> Tuple[Expr, int]:
         else:
             var, i = parse_var(ts, i)
             return Expr((j, i), var), i
-    elif t.kind == TokenKind.Int:
+    elif t.kind in [TokenKind.Int, TokenKind.Str]:
         lit, i = parse_lit(ts, i)
         return Expr((j, i), lit), i
     raise ParserError('Unexpected token', t)
@@ -207,8 +208,13 @@ def parse_infix_fn_call(ts: Ts, j: int) -> Tuple[InfixFnCall, int]:
 
 def parse_lit(ts: Ts, j: int) -> Tuple[Lit, int]:
     i = j
-    int_lit, i = parse_int_lit(ts, i)
-    return Lit((j, i), int_lit), i
+    if ts[i].kind == TokenKind.Int:
+        int_lit, i = parse_int_lit(ts, i)
+        return Lit((j, i), int_lit), i
+    elif ts[i].kind == TokenKind.Str:
+        str_lit, i = parse_str_lit(ts, i)
+        return Lit((j, i), str_lit), i
+    raise ParserError('Expected Str or Int', ts[i])
 
 
 def parse_int_lit(ts: Ts, j: int) -> Tuple[IntLit, int]:
@@ -216,6 +222,13 @@ def parse_int_lit(ts: Ts, j: int) -> Tuple[IntLit, int]:
     t, i = _consume_kind(ts, i, TokenKind.Int)
     assert isinstance(t.value, int)
     return IntLit((j, i), t.value), i
+
+
+def parse_str_lit(ts: Ts, j: int) -> Tuple[StrLit, int]:
+    i = j
+    t, i = _consume_kind(ts, i, TokenKind.Str)
+    assert isinstance(t.value, str)
+    return StrLit((j, i), t.value), i
 
 
 def parse_var(ts: Ts, j: int) -> Tuple[Var, int]:
