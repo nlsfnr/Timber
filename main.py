@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from timber import vm, parser, lexer, codegen
+from timber import parser, lexer, codegen
 
 
 def main():
