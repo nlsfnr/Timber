@@ -3,11 +3,11 @@ from functools import reduce
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 
-from ..parser.nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt,
-                            SimpleStmt, Expr, WhileStmt, IfStmt, FnCall, Var,
-                            Lit, IntLit, InfixFnCall, Program, DefaultFnCall,
-                            Assign, ReturnStmt, Node, StrLit)
-from ..vm import MWord, Op, OpKind, to_ptr, align, VM
+from .parser.nodes import (VarDecl, FnDef, Block, Stmt, CompountStmt,
+                           SimpleStmt, Expr, WhileStmt, IfStmt, FnCall, Var,
+                           Lit, IntLit, InfixFnCall, Program, DefaultFnCall,
+                           Assign, ReturnStmt, Node, StrLit)
+from .vm import MWord, Op, OpKind, to_ptr, align, VM
 
 
 _DUMMY_ADDR = 0
@@ -35,6 +35,7 @@ class Context:
             # + 1 for the 0-terminator
             self._str_addr_offset += align(len(bytes_) + 1)
             return self._str_addrs[bytes_]
+        return self._str_addrs[bytes_]
 
     def build_mem(self, size: MWord) -> Tuple[bytearray, MWord]:
         if size <= self._str_addr_offset:
@@ -285,10 +286,6 @@ class Namespace:
         return to_ptr(1 + idx) - ctx.stack_ptr_offset
 
 
-def gen(n: Node) -> Unit:
-    pass
-
-
 def gen_program(n: Program) -> Unit:
     globals_: Dict[str, MWord] = {var_decl.name: idx
                                   for idx, var_decl in enumerate(n.var_decls)}
@@ -321,6 +318,8 @@ def gen_stmt(n: Stmt, ns: Namespace, ctx: Context) -> Unit:
         return gen_compound_stmt(child, ns, ctx)
     elif isinstance(child, SimpleStmt):
         return gen_simple_stmt(child, ns, ctx)
+    else:
+        raise CodegenError(f'Unknown stmt: {child}')
 
 
 def gen_compound_stmt(n: CompountStmt, ns: Namespace, ctx: Context) -> Unit:
@@ -331,6 +330,8 @@ def gen_compound_stmt(n: CompountStmt, ns: Namespace, ctx: Context) -> Unit:
         return gen_if_stmt(child, ns, ctx)
     if isinstance(child, Block):
         return gen_block(child, ns, ctx)
+    else:
+        raise CodegenError(f'Unknown compound stmt: {child}')
 
 
 def gen_simple_stmt(n: SimpleStmt, ns: Namespace, ctx: Context) -> Unit:
@@ -339,6 +340,8 @@ def gen_simple_stmt(n: SimpleStmt, ns: Namespace, ctx: Context) -> Unit:
         return gen_return_stmt(child, ns, ctx)
     elif isinstance(child, Expr):
         return gen_expr(child, ns, ctx).pop()
+    else:
+        raise CodegenError(f'Unknown simple stmt: {child}')
 
 
 def gen_expr(n: Expr, ns: Namespace, ctx: Context) -> Unit:
@@ -353,6 +356,8 @@ def gen_expr(n: Expr, ns: Namespace, ctx: Context) -> Unit:
         return gen_expr(child, ns, ctx)
     elif isinstance(child, Assign):
         return gen_assign(child, ns, ctx)
+    else:
+        raise CodegenError(f'Unknown expr: {child}')
 
 
 def gen_fn_call(n: FnCall, ns: Namespace, ctx: Context) -> Unit:
@@ -361,6 +366,8 @@ def gen_fn_call(n: FnCall, ns: Namespace, ctx: Context) -> Unit:
         return gen_default_fn_call(child, ns, ctx)
     elif isinstance(child, InfixFnCall):
         return gen_infix_fn_call(child, ns, ctx)
+    else:
+        raise CodegenError(f'Unknown fn call: {child}')
 
 
 def gen_default_fn_call(n: DefaultFnCall, ns: Namespace, ctx: Context) -> Unit:
@@ -372,6 +379,7 @@ def gen_default_fn_call(n: DefaultFnCall, ns: Namespace, ctx: Context) -> Unit:
 
 
 def gen_infix_fn_call(n: InfixFnCall, ns: Namespace, ctx: Context) -> Unit:
+    del n, ns, ctx
     raise NotImplementedError
 
 
@@ -421,6 +429,7 @@ def gen_return_stmt(n: ReturnStmt, ns: Namespace, ctx: Context) -> Unit:
 
 
 def gen_int_lit(n: IntLit, ns: Namespace, ctx: Context) -> Unit:
+    del ns
     return Unit(ctx).push(n.value)
 
 
@@ -433,6 +442,7 @@ def gen_lit(n: Lit, ns: Namespace, ctx: Context) -> Unit:
 
 
 def gen_str_lit(n: StrLit, ns: Namespace, ctx: Context) -> Unit:
+    del ns
     ptr = ctx.str_lit(n.value)
     return Unit(ctx).push(ptr)
 
